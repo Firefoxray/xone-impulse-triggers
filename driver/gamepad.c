@@ -185,8 +185,8 @@ static int gip_gamepad_queue_rumble(struct input_dev *dev, void *data,
 	u16 mag_left = effect->u.rumble.strong_magnitude;
 	u16 mag_right = effect->u.rumble.weak_magnitude;
 	u16 mag_max = max(mag_left, mag_right);
-	u16 trigger_left = READ_ONCE(gamepad->trigger_left);
-	u16 trigger_right = READ_ONCE(gamepad->trigger_right);
+	u16 trigger_left = min_t(u16, READ_ONCE(gamepad->trigger_left), 1023);
+	u16 trigger_right = min_t(u16, READ_ONCE(gamepad->trigger_right), 1023);
 	u32 trigger_left_percent;
 	u32 trigger_right_percent;
 	unsigned long flags;
@@ -597,6 +597,6 @@ module_gip_driver(gip_gamepad_driver);
 
 MODULE_ALIAS("gip:Windows.Xbox.Input.Gamepad");
 MODULE_AUTHOR("Severin von Wnuck-Lipinski <severinvonw@outlook.de>");
-MODULE_DESCRIPTION("xone GIP gamepad driver");
+MODULE_DESCRIPTION("xone GIP gamepad driver with pressure-controlled impulse trigger rumble");
 MODULE_VERSION("#VERSION#");
 MODULE_LICENSE("GPL");

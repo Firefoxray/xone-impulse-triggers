@@ -1,277 +1,129 @@
 <p align="center">
-    <img src="logo.svg" alt="Logo" width="200">
+  <img src="logo.svg" alt="xone" width="180">
 </p>
 
-<p align="center">
-    <a href="https://github.com/dlundqvist/xone/releases/latest"><img src="https://img.shields.io/github/v/release/dlundqvist/xone?logo=github" alt="Release Badge"></a>
-    <a href="https://discord.gg/T3dSC3ReuS"><img src="https://img.shields.io/discord/733964971842732042?label=discord&logo=discord" alt="Discord Badge"></a>
-</p>
+# xone Impulse Triggers
 
-`xone` is a Linux kernel driver for Xbox One and Xbox Series X|S accessories. It serves as a modern replacement for
-`xpad`, aiming to be compatible with Microsoft's *Game Input Protocol* (GIP).
+A small fork of [xone](https://github.com/dlundqvist/xone) that adds xpadneo-style
+trigger rumble to Xbox One and Xbox Series controllers over USB.
 
-> [!NOTE]
-> The original project is in maintance mode, please refer to this one for updates and issues.
-> 
-> Huge thanks to medusalix for all the work and creating this driver!
+Normal handle rumble works like stock xone. When a game sends regular Linux
+`FF_RUMBLE`, the driver also drives the LT and RT motors based on how far each
+trigger is pressed.
 
-## Compatibility
+This is pressure-based trigger rumble. It does not add a new four-channel
+force-feedback API.
 
-- [x] Wired devices (via USB)
-- [x] Wireless devices (with Xbox Wireless Dongle)
-- [ ] Bluetooth devices (check out [`xpadneo`](https://github.com/atar-axis/xpadneo))
+## Tested
 
-Installing `xone` will disable the `xpad` kernel driver. If you are still using Xbox or Xbox 360 peripherals,
-you will have to install [`xpad-noone`](https://github.com/forkymcforkface/xpad-noone) as a replacement for `xpad`.
+Confirmed on an official Xbox Series S|X controller over USB (`045e:0b12`).
 
-## Important notes
+- USB/GIP input
+- normal rumble
+- independent LT/RT motors
+- trigger strength follows trigger pressure
+- DKMS + Secure Boot with an enrolled DKMS MOK key
 
-This driver is still in active development. Use at your own risk!
-If you are running `xow` upgrading to `xone` is *highly recommended*!
-Always update your Xbox devices to the latest firmware version!
-**Any feedback including bug reports, suggestions or ideas is [*greatly appreciated*](https://discord.gg/J7kgN5Wm).**
+Bluetooth is still handled by [xpadneo](https://github.com/atar-axis/xpadneo).
 
-## Features
+## Install
 
-- [x] Input and force feedback (rumble)
-- [x] Battery reporting (`UPower` integration)
-- [x] LED control (using `/sys/class/leds`)
-- [x] Audio capture/playback (through `ALSA`)
-- [x] Power management (suspend/resume and remote/wireless wakeup)
+For now, use the test branch:
 
-## Supported devices
-
-- [x] Gamepads
-    - [x] Xbox One Controllers
-    - [x] Xbox Series X|S Controllers
-    - [x] Xbox Adaptive Controller
-    - [x] Third party controllers (PowerA, PDP, etc.)
-- [x] Headsets
-    - [x] Xbox One Chat Headset
-    - [x] Xbox One Stereo Headset (adapter or jack)
-    - [x] Xbox Wireless Headset
-    - [x] Third party wired and wireless headsets (SteelSeries, Razer, etc.)
-- [x] Guitars & Drums
-    - [x] Mad Catz Rock Band 4 Wireless Fender Stratocaster
-    - [x] Mad Catz Rock Band 4 Wireless Drum Kit
-    - [x] PDP Rock Band 4 Wireless Fender Jaguar
-- [x] Xbox One Chatpad
-- [ ] Third party racing wheels (Thrustmaster, Logitech, etc.)
-
-## Releases
-
-[![Packaging status](https://repology.org/badge/vertical-allrepos/xone.svg)](https://repology.org/project/xone/versions)
-
-Feel free to package `xone` for any Linux distribution or hardware you like.
-Any issues regarding the packaging should be reported to the respective maintainers.
-
-## Building and testing
-
-### Prerequisites
-
-- Linux 6.5+
-- Linux headers
-
-### Automagically
-Build the driver with debug flags, load modules, cleanup working directory
-```shell
-sudo make test
-```
-
-### Manually
-Build the driver
-```shell
-make
-# with debug
-make debug
-```
-
-Load modules from the build directory
-```shell
-sudo make load
-```
-
-Unload all xone modules
-```shell
-# called automatically during load as well
-sudo make unload
-```
-
-Clean all build files
-```shell
-make clean
-```
-
-## Installation
-
-### Prerequisites
-
-- Linux (kernel 5.13+ and headers)
-- DKMS
-- curl (for firmware download)
-- bsdtar (for firmware extraction)
-- For SecureBoot-enabled systems see [SecureBoot dkms guide](https://github.com/dell/dkms#secure-boot)
-
-### Guide
-
-1. Unplug your Xbox devices.
-
-2. Clone the repository:
-
-```
-git clone https://github.com/dlundqvist/xone
-```
-
-3. Install `xone`:
-
-```
-cd xone
+```bash
+git clone -b impulse-trigger-rumble https://github.com/Firefoxray/xone-impulse-triggers.git
+cd xone-impulse-triggers
 sudo make install
 ```
 
-**NOTE:** You can use the `install-debug` target instead to enable debug logging.
+If you already have the repo:
 
-4. Download the firmware for the wireless dongle (optional, makefile automatically installs firmware):
-
-```
-sudo install/firmware.sh
-```
-> [!NOTE]
-> The `--skip-disclaimer` flag might be useful for scripting purposes.
-
-> [!TIP]
-> The `xone-dongle.fw_override=0x0000` module paramter can be used to load a different firmware file than the one selected automatically by the driver. The value is the USB PID contained in the fw file eg. `xone_dongle_02fe.bin`
-
-5. Plug in your Xbox devices.
-
-### Updating
-
-Just run the install script again after pulling the newset changes from the repository.
-
-```
+```bash
 git pull
 sudo make install
 ```
 
-Reboot is highly suggested
+Reboot after installing.
 
-### Steam Deck/SteamOS
-#### Automatic install
-First, let's set a password
+xone blacklists the stock `xpad` driver because both drivers can claim the same
+Xbox USB controller. On Fedora, if `xpad` still wins after a reboot:
+
 ```bash
-# (optional, skip if you've already done this in the past)
-passwd deck
+sudo dracut -f
+sudo reboot
 ```
-Run installation script
+
+## Secure Boot
+
+The installer uses DKMS. If your DKMS MOK key is already enrolled, DKMS signs
+the rebuilt modules automatically.
+
 ```bash
-sudo sh -c "$(curl -fsSL https://raw.githubusercontent.com/dlundqvist/xone/master/install/steam-deck-install.sh)"
+dkms status | grep xone
+modinfo -F signer xone_gip_gamepad
+modinfo -F signer xone_wired
 ```
-#### Uninstall:
+
+## CachyOS / Clang kernels
+
+Some Fedora CachyOS kernels are built with Clang/LTO. The DKMS installer detects
+that and builds xone with `LLVM=1`.
+
+For a manual build:
+
 ```bash
-sudo pacman -Rcns xone-dkms
+sudo dnf install clang llvm lld dwarves
+make LLVM=1
 ```
-Optionally, lock your deck and  remove password
+
+## Check the USB path
+
 ```bash
-steamos-readonly enable
-# enter current one and leave the new password blank
-passwd deck
+grep -B2 -A12 -iE 'xbox|microsoft' /proc/bus/input/devices
 ```
 
-### Using Xbox 360 controllers with xone
+A controller handled by xone should show something like:
 
-`xone` doesn't support Xbox 360 controllers at all. On top of that, `xone` needs to disable `xpad` driver to work
-properly, which would normally support Xbox 360 controllers. This is due to `xpad` also trying to handle Xbox One
-controllers, which `xone` aims to support.
-
-To fix that, there is a fork of [xpad](https://github.com/paroj/xpad) driver, called [xpad-noone](https://github.com/forkymcforkface/xpad-noone) that
-has disabled support for Xbox One controllers, so it can coexist with `xone` driver. If you're using Xbox 360
-controllers, it is recommended to use it to replace the standard `xpad` driver.
-
-## Wireless pairing
-
-Xbox devices have to be paired to the wireless dongle. They will not automatically connect to the dongle if they have
-been previously plugged into a USB port or used via Bluetooth.
-
-Instructions for pairing your devices can be found
-[here](https://support.xbox.com/en-US/help/hardware-network/controller/connect-xbox-wireless-controller-to-pc)
-(see the section on *Xbox Wireless*).
-
-## Kernel interface
-
-### LED control
-
-The guide button LED can be controlled via `sysfs`:
-
-```
-echo 2 | sudo tee /sys/class/leds/gip*/mode
-echo 5 | sudo tee /sys/class/leds/gip*/brightness
+```text
+N: Name="Microsoft Xbox Controller"
+P: Phys=gip0.0/input0
 ```
 
-Changing the LED in the above way is temporary, it will only last until the device disconnects. To apply these settings
-automatically when a device connects, you can create a new `udev` rule in `/etc/udev/rules.d/50-xone.rules` with
-the following content:
+You can also check:
 
-```
-ACTION=="add", SUBSYSTEM=="leds", KERNEL=="gip*", ATTR{mode}="2", ATTR{brightness}="5"
+```bash
+lsmod | grep -E 'xone|xpad'
 ```
 
-Replace the wildcard (`gip*`) if you want to control the LED of a specific device.
-The modes and the maximum brightness can vary from device to device.
+For the wired xone path, `xone_gip_gamepad`, `xone_wired`, and `xone_gip`
+should be loaded. Stock `xpad` should not be handling the controller.
 
-### Pairing mode
+## Test trigger rumble
 
-The pairing mode of the dongle can be queried via `sysfs`:
+On Fedora:
 
-```
-cat /sys/bus/usb/drivers/xone-dongle/*/pairing
-```
-
-You can enable (`1`) or disable (`0`) the pairing using the following command:
-
-```
-echo 1 | sudo tee /sys/bus/usb/drivers/xone-dongle/*/pairing
+```bash
+sudo dnf install linuxconsoletools
+sudo fftest /dev/input/eventXXX
 ```
 
-## Number of active clients and forcing poweroff
-```
-# show number of connected controllers
-cat /sys/bus/usb/drivers/xone-dongle/*/active_clients
+Hold LT or RT before starting a rumble effect. With neither trigger held, only
+the main motors should run. Holding LT or RT should add vibration to that trigger.
 
-# power off selected client (possible values from 0 to 15)
-sudo tee /sys/bus/usb/drivers/xone-dongle/*/poweroff <<< 1
+## How it works
 
-# power off all connected clients
-sudo tee /sys/bus/usb/drivers/xone-dongle/*/poweroff <<< -1
-```
+xone already has fields for four motors in the GIP rumble packet. Linux
+`FF_RUMBLE` normally provides only the two main motor strengths.
 
-## Troubleshooting
+This fork keeps those main values unchanged, remembers the current LT/RT
+positions, and scales each trigger motor from the stronger main rumble value.
 
-Uninstall the release version and install a debug build of `xone` (see installation guide).
-Run `sudo dmesg` to gather logs and check for any error messages related to `xone`.
-If `xone` is not being loaded automatically you might have to reboot your system.
+The behavior is based on xpadneo's pressure-controlled trigger rumble.
 
-### Error messages
+## Credits
 
-- `Direct firmware load for xow_dongle.bin failed with error -2`
-    - Download the firmware for the wireless dongle (see installation guide).
+Based on [xone](https://github.com/dlundqvist/xone), originally created by
+[medusalix](https://github.com/medusalix/xone). Trigger-rumble behavior is based
+on [xpadneo](https://github.com/atar-axis/xpadneo).
 
-### Input issues
-
-You can use `evtest` and `fftest` to check the input and force feedback functionality of your devices.
-
-### Other problems
-
-Please join the [Discord server](https://discord.gg/T3dSC3ReuS) in case of any other problems.
-
-## License
-
-`xone` is released under the [GNU General Public License, Version 2](LICENSE).
-
-```
-Copyright (C) 2021 Severin von Wnuck-Lipinski
-
-This program is free software; you can redistribute it and/or
-modify it under the terms of the GNU General Public License
-as published by the Free Software Foundation; either version 2
-of the License, or (at your option) any later version.
-```
+GPL-2.0-or-later.

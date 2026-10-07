@@ -18,14 +18,18 @@ if [ -f /usr/local/bin/xow ]; then
 fi
 
 if [ -n "${SUDO_USER:-}" ]; then
-    # Run as normal user to prevent "unsafe repository" error
-    version=$(sudo -u "$SUDO_USER" git describe --tags 2> /dev/null || echo unknown)
+    # Run as the invoking user to avoid Git's "unsafe repository" check.
+    base_version=$(sudo -u "$SUDO_USER" git describe --tags --always --dirty 2>/dev/null \
+        || sudo -u "$SUDO_USER" git rev-parse --short HEAD 2>/dev/null \
+        || echo local)
 else
-    version=unknown
+    base_version=$(git describe --tags --always --dirty 2>/dev/null \
+        || git rev-parse --short HEAD 2>/dev/null \
+        || echo local)
 fi
 
-# remove "v" prefix
-version=${version##v}
+base_version=${base_version##v}
+version="${base_version}-impulse"
 
 source="/usr/src/xone-$version"
 log="/var/lib/dkms/xone/$version/build/make.log"
@@ -39,9 +43,7 @@ echo "Installing xone $version..."
 cp -r . "$source"
 find "$source" -type f \( -name dkms.conf -o -name '*.c' \) -exec sed -i "s/#VERSION#/$version/" {} +
 
-# The MAKE line in dkms.conf is required for kernels built using clang.
-# Add it if the kernel is built using gcc - i.e. "clang" is in the kernel
-# version string.
+# Kernels built with Clang need external modules built with LLVM as well.
 if [ -n "$(cat /proc/version | grep clang)" ]; then
     echo 'MAKE[0]="make V=1 LLVM=1 -C ${kernel_source_dir}'\
         'M=${dkms_tree}/${PACKAGE_NAME}/${PACKAGE_VERSION}/build"'\
@@ -52,10 +54,12 @@ if [ "${1:-}" == --debug ]; then
     echo 'ccflags-y += -DDEBUG' >> "$source/Kbuild"
 fi
 
-if dkms install -m xone -v "$version" --force; then
-    # The blacklist should be placed in /usr/local/lib/modprobe.d for kmod 29+
-    install -D -m 644 install/modprobe.conf /etc/modprobe.d/xone-blacklist.conf
+# Put the blacklist in place before DKMS runs so distro post-install hooks
+# (including initramfs rebuilds) see it.
+blacklist="/etc/modprobe.d/xone-blacklist.conf"
+install -D -m 644 install/modprobe.conf "$blacklist"
 
+if dkms install -m xone -v "$version" --force; then
     # Avoid conflicts between xpad and xone
     if lsmod | grep -q '^xpad'; then
         modprobe -r xpad
@@ -66,6 +70,8 @@ if dkms install -m xone -v "$version" --force; then
         modprobe -r mt76x2u
     fi
 else
+    rm -f "$blacklist"
+
     if [ -r "$log" ]; then
         cat "$log" >&2
     fi
