@@ -31,7 +31,7 @@ Bluetooth is still handled by [xpadneo](https://github.com/atar-axis/xpadneo).
 ### Fedora dependencies
 
 ```bash
-sudo dnf install git dkms make kernel-devel kernel-headers curl bsdtar
+sudo dnf install git dkms make gcc kernel-devel kernel-headers curl bsdtar
 ```
 
 For Fedora CachyOS kernels built with Clang/LTO, also install:
