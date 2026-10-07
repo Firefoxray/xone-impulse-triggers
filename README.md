@@ -28,13 +28,28 @@ Bluetooth is still handled by [xpadneo](https://github.com/atar-axis/xpadneo).
 
 ## Install
 
-For now, use the test branch:
+### Fedora dependencies
 
 ```bash
-git clone -b impulse-trigger-rumble https://github.com/Firefoxray/xone-impulse-triggers.git
+sudo dnf install git dkms make kernel-devel kernel-headers curl bsdtar
+```
+
+For Fedora CachyOS kernels built with Clang/LTO, also install:
+
+```bash
+sudo dnf install clang llvm lld dwarves
+```
+
+Clone and install the driver:
+
+```bash
+git clone https://github.com/Firefoxray/xone-impulse-triggers.git
 cd xone-impulse-triggers
 sudo make install
 ```
+
+`bsdtar` is required by the Xbox Wireless Dongle firmware installer. On Fedora
+it is a separate package from `libarchive`, even though it uses libarchive.
 
 If you already have the repo:
 
