@@ -145,6 +145,14 @@ struct gip_gamepad {
 	bool supports_dli;
 	PaddleCapability paddle_support;
 
+	/*
+	 * Last reported trigger positions (0..1023).  These are used to
+	 * synthesize xpadneo-style pressure-controlled impulse trigger rumble
+	 * from the standard Linux two-channel FF_RUMBLE effect.
+	 */
+	u16 trigger_left;
+	u16 trigger_right;
+
 	struct gip_gamepad_rumble rumble;
 };
 
@@ -173,8 +181,14 @@ static int gip_gamepad_queue_rumble(struct input_dev *dev, void *data,
 				    struct ff_effect *effect)
 {
 	struct gip_gamepad_rumble *rumble = input_get_drvdata(dev);
+	struct gip_gamepad *gamepad = rumble->parent;
 	u16 mag_left = effect->u.rumble.strong_magnitude;
 	u16 mag_right = effect->u.rumble.weak_magnitude;
+	u16 mag_max = max(mag_left, mag_right);
+	u16 trigger_left = READ_ONCE(gamepad->trigger_left);
+	u16 trigger_right = READ_ONCE(gamepad->trigger_right);
+	u32 trigger_left_percent;
+	u32 trigger_right_percent;
 	unsigned long flags;
 
 	if (effect->type != FF_RUMBLE)
@@ -184,6 +198,24 @@ static int gip_gamepad_queue_rumble(struct input_dev *dev, void *data,
 
 	rumble->pkt.left = mag_left * GIP_GP_RUMBLE_MAX / U16_MAX;
 	rumble->pkt.right = mag_right * GIP_GP_RUMBLE_MAX / U16_MAX;
+
+	/*
+	 * Match xpadneo's pressure-controlled trigger-rumble behavior:
+	 * derive both impulse-motor strengths from the stronger main rumble
+	 * channel, then scale each side by the corresponding trigger position.
+	 *
+	 * This intentionally uses the existing FF_RUMBLE API, so games do not
+	 * need native four-motor Linux support to get impulse-trigger feedback.
+	 */
+	trigger_left_percent =
+		(trigger_left * GIP_GP_RUMBLE_MAX + 511) / 1023;
+	trigger_right_percent =
+		(trigger_right * GIP_GP_RUMBLE_MAX + 511) / 1023;
+
+	rumble->pkt.left_trigger =
+		(mag_max * trigger_left_percent + S16_MAX) / U16_MAX;
+	rumble->pkt.right_trigger =
+		(mag_max * trigger_right_percent + S16_MAX) / U16_MAX;
 
 	/* delay rumble to work around firmware bug */
 	if (!timer_pending(&rumble->timer))
@@ -388,6 +420,13 @@ static int gip_gamepad_op_input(struct gip_client *client, void *data, u32 len)
 		return -EINVAL;
 
 	buttons = le16_to_cpu(pkt->buttons);
+
+	/*
+	 * Remember the physical trigger positions for xpadneo-style impulse
+	 * trigger rumble.  The GIP input range is 0..1023 on both triggers.
+	 */
+	WRITE_ONCE(gamepad->trigger_left, le16_to_cpu(pkt->trigger_left));
+	WRITE_ONCE(gamepad->trigger_right, le16_to_cpu(pkt->trigger_right));
 
 	/* share button byte is always at fixed offset from end of packet */
 	if (gamepad->supports_share) {
